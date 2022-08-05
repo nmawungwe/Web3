@@ -1,9 +1,9 @@
 // Next.js API route support: https://nextjs.org/docs/api-routes/introduction
 
 // Base URI + TokenID
-// Base URI = https://web3-baqfji0oz-nmawungwe.vercel.app/api/
+// Base URI = https://web3-ck83z5mvm-nmawungwe.vercel.app/api/
 // Token ID = 1 
-// tokenURI(1) => https://web3-baqfji0oz-nmawungwe.vercel.app/api/1
+// tokenURI(1) => https://web3-ck83z5mvm-nmawungwe.vercel.app/api/1
 
 export default function handler(req, res) {
  
