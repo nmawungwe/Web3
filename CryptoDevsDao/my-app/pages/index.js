@@ -20,9 +20,12 @@ export default function Home() {
   const [walletConnected, setWalletConnected] = useState(false);
   const [daoTreasuryBalance, setDaoTreasuryBalance] = useState("0");
   const [nftBalance, setNftBalance] = useState(0);
+  const [numberOfProposals, setNumberOfProposals] = useState("0");
   const web3ModalRef = useRef();
   
   
+
+
   // Helper function to connect wallet
   const connectWallet = async () => {
     try {
@@ -79,6 +82,21 @@ export default function Home() {
     }
   }
 
+  const getNumberOfProposal = async() => {
+    try {
+      const provider = await getProviderOrSigner();
+      const daoContract = new Contract(
+        CRYPTODEVS_DAO_CONTRACT_ADDRESS,
+        CRYPTODEVS_DAO_ABI,
+        provider
+      );
+      const daoNumProposals = await daoContract.numProposals();
+      setNumberOfProposals(daoNumProposals.toString());
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
   useEffect(() => {
     if(!walletConnected) {
       web3ModalRef.current = new Web3Modal({
@@ -90,6 +108,7 @@ export default function Home() {
       connectWallet().then(()=> {
         getDAOTreasuryBalance();
         getUserNftBalance();
+        getNumberOfProposal();
       })
     };
   },[walletConnected]);
@@ -118,7 +137,7 @@ export default function Home() {
             <br />
             Treasury Balance: {formatEther(daoTreasuryBalance)} ETH
             <br />
-            Total Number of Proposals: Tbd
+            Total Number of Proposals: {numberOfProposals}
           </div>
           <div className={styles.flex}>
             <button 
