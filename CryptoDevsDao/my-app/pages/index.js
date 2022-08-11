@@ -20,6 +20,11 @@ export default function Home() {
   const [walletConnected, setWalletConnected] = useState(false);
   const [daoTreasuryBalance, setDaoTreasuryBalance] = useState("0");
   const [nftBalance, setNftBalance] = useState(0);
+  const [totalNumOfProposals, setTotalNumOfProposals] = useState(0);
+  const [proposals, setProposals] = useState([]);
+  const [fakeNftTokenId, setFakeNftTokenId] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [selectedTab, setSelectedTab] = useState("");
   const web3ModalRef = useRef();
   
   
@@ -60,7 +65,7 @@ export default function Home() {
       console.error(error)
     }
   }
-
+  // Function to get the total number of NFTs that a DAO member has 
   const getUserNftBalance = async () => {
     try {
       const signer = await getProviderOrSigner(true);
@@ -72,12 +77,126 @@ export default function Home() {
        
        const address = signer.getAddress();
        const nftAmount = await nftContract.balanceOf(address);
-       console.log(nftAmount.toString());
        setNftBalance(parseInt(nftAmount.toString())); 
     } catch (error) {
         console.error(error);
     }
   }
+
+  const getTotalNumOfProposals = async () => {
+    try {
+      const provider = await getProviderOrSigner();
+      const daoContract = new Contract(
+          CRYPTODEVS_DAO_CONTRACT_ADDRESS,
+          CRYPTODEVS_DAO_ABI,
+          provider
+      )
+      const numOfProposals = await daoContract.numProposals();
+      setTotalNumOfProposals(parseInt(numOfProposals.toString()));
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  const createDaoProposal = async() => {
+    try {
+      const signer = await getProviderOrSigner(true);
+      const daoContract = new Contract (
+        CRYPTODEVS_DAO_CONTRACT_ADDRESS,
+        CRYPTODEVS_DAO_ABI,
+        signer
+      )
+
+      const txn = await daoContract.createProposal(fakeNftTokenId);
+      setLoading(true);
+      await txn.wait();
+      await getTotalNumOfProposals();
+      setLoading(false);
+    } catch (error) {
+        console.error(error);
+        window.alert(error.data.message);
+    }
+  }
+
+  // Run a loop `numProposals` times to fetch all proposals in the DAO
+  // and sets the proposals state variable 
+  const fetchAllProposals = async() => {
+    try {
+      const proposals = [];
+      for (let i = 0; i < totalNumOfProposals; i++) {
+        const proposal = await fetchProposalById(i);
+        proposals.push(proposal);
+      }
+      setProposals(proposals);
+      return proposals;
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
+  const fetchProposalById = async(id) => {
+    try {
+      const provider = await getProviderOrSigner();
+      const daoContract = new Contract(
+        CRYPTODEVS_DAO_CONTRACT_ADDRESS,
+        CRYPTODEVS_DAO_ABI,
+        provider
+      )
+      const proposal = await daoContract.proposals(id);
+      const parsedProposal = {
+        proposalId: id,
+        nftTokenId: proposal.nftTokenId.toString(),
+        deadline: new Date(parseInt(proposal.deadline.toString()) * 1000),
+        yayVotes: proposal.yayVotes.toString(),
+        nayVotes: proposal.nayVotes.toString(),
+        executed: proposal.executed,
+      };
+      return parsedProposal;
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  const voteOnProposal = async(proposalId, _vote) => {
+    try {
+      const signer = await getProviderOrSigner(true);
+      const daoContract = new Contract(
+          CRYPTODEVS_DAO_CONTRACT_ADDRESS,
+          CRYPTODEVS_DAO_ABI,
+          signer
+      );
+      let vote = _vote === "YAY" ? 0 : 1;
+      const txn = await daoContract.voteOnProposal(proposalId, vote);
+      setLoading(true);
+      await txn.wait();
+      setLoading(false);
+      await fetchAllProposals();
+    } catch (error) {
+        console.error(error);
+        window.alert(error.data.message);
+    }
+  }
+
+  // Calling the `executeProposal` function in the contract, using the passed proposal ID 
+  const executeProposal = async (proposalId) => {
+    try {
+        const signer = await getProviderOrSigner(true);
+        const daoContract = new Contract(
+          CRYPTODEVS_DAO_CONTRACT_ADDRESS,
+          CRYPTODEVS_DAO_ABI,
+          signer
+        )
+        const txn = await daoContract.executeProposal(proposalId);
+        setLoading(true);
+        await txn.wait();
+        setLoading(false);
+        await fetchAllProposals();
+    } catch (error) {
+        console.error(error);
+    }
+  }
+  
+
 
   useEffect(() => {
     if(!walletConnected) {
@@ -90,17 +209,121 @@ export default function Home() {
       connectWallet().then(()=> {
         getDAOTreasuryBalance();
         getUserNftBalance();
+        getTotalNumOfProposals();
       })
     };
   },[walletConnected]);
 
-   function renderTabs() {
-    return (
-      <div>
+  // Piece of code that runs everytime the value of `selectedTab` changes
+  // Used to re-fetch all proposals in the DAO when user switches 
+  // to the 'View Proposals' tab  
+  useEffect(() => {
+    if (selectedTab === "View Proposals") {
+      fetchAllProposals();
+    }
+  }, [selectedTab]);
 
-      </div>
-    )
+
+   function renderTabs() {
+    if (selectedTab === "Create Proposal") {
+      return renderCreateProposalTab();
+    } else if (selectedTab === "View Proposals") {
+      return renderViewProposalsTab();
+    }
+    return null;
   }
+
+  function renderCreateProposalTab() {
+    if (loading) {
+      return (
+        <div className={styles.description}>
+          Loading... Waiting for transaction...
+        </div>
+      );
+    } else if (nftBalance === 0) {
+      return (
+        <div className={styles.description}>
+          You do not own any CryptoDevs NFTs. <br />
+          <b>You cannot create or vote on proposals.</b>
+        </div>
+      )
+    } else {
+      return (
+        <div className={styles.container}>
+          <label>Fake NFT Token ID to Purchase: </label>
+          <input
+            placeholder="0"
+            type="number"
+            onChange={(e) => setFakeNftTokenId(e.target.value)}
+          />
+          <button className={styles.button2} onClick={createDaoProposal}>
+            Create
+          </button>
+        </div>
+      )
+    }
+
+  }
+
+  function renderViewProposalsTab() {
+    if (loading) {
+      return (
+        <div className={styles.description}>
+          Loading... Waiting for transaction...
+        </div>
+      );
+    } else if (proposals.length === 0) {
+      return (
+        <div className={styles.description}>
+          No proposals have been created.
+        </div>
+      );
+    } else {
+      return (
+        <div>
+          {proposals.map((p, index) => (
+            <div key={index} className={styles.proposalCard}>
+              <p>Proposal ID: {p.proposalId}</p>
+              <p>Fake NFT to Purchase: {p.nftTokenId}</p>
+              <p>Deadline: {p.deadline.toLocaleString()}</p>
+              <p>Yay Votes: {p.yayVotes}</p>
+              <p>Nay Votes: {p.nayVotes}</p>
+              <p>Executed?: {p.executed.toString()}</p>
+              {p.deadline.getTime() > Date.now() && !p.executed ? (
+                <div className={styles.flex}>
+                  <button
+                    className={styles.button2}
+                    onClick={() => voteOnProposal(p.proposalId, "YAY")}
+                  >
+                    Vote Yay
+                  </button>
+                  <button
+                    className={styles.button2}
+                    onClick={()=> voteOnProposal(p.proposalId, "NAY")}
+                  >
+                    Vote Nay
+                  </button>
+                </div>
+              ): p.deadline.getTime() < Date.now() && !p.executed ? (
+                <div className={styles.flex}>
+                  <button
+                    className={styles.button2}
+                    onClick={() => executeProposal(p.proposalId)}
+                  >
+                    Execute Proposal{" "}
+                    {p.yayVotes > p.nayVotes ? "(YAY)" : "(NAY)"}
+                  </button>
+                </div>
+              ): (
+                <div className={styles.description}>Proposal Executed</div>
+              )}
+            </div>
+          ))}
+        </div>
+      )
+    }
+  }
+
 
   return (
     <div>
@@ -118,18 +341,18 @@ export default function Home() {
             <br />
             Treasury Balance: {formatEther(daoTreasuryBalance)} ETH
             <br />
-            Total Number of Proposals: Tbd
+            Total Number of Proposals: {totalNumOfProposals}
           </div>
           <div className={styles.flex}>
             <button 
               className={styles.button}
-              onClick={() => console.log("Create proposal")}
+              onClick={() => setSelectedTab("Create Proposal")}
             >
               Create Proposal
             </button>
             <button
               className={styles.button}
-              onClick={() => console.log("View proposals tab")}
+              onClick={() => setSelectedTab("View Proposals")}
             >
               View Proposals
             </button>
