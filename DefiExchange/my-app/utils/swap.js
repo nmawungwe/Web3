@@ -34,7 +34,7 @@ export const getAmountOfTokensReceivedFromSwap = async (
         amountOfTokens = await exchangeContract.getAmountOfTokens(
             _swapAmountWei,
             ethBalance,
-            reserveCD
+            reservedCD
         );
     } else {
            // If `Eth` is not selected this means our input value is `Crypto Dev` tokens which means our input amount would be
