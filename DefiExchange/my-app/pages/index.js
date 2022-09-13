@@ -342,7 +342,7 @@ export default function Home() {
                 <input
                   type="number"
                   placeholder="Amount of Ether"
-                  onChange={(e) => setAddEther(e.target.value) || "0"}
+                  onChange={(e) => setAddEther(e.target.value || "0")}
                   className={styles.input}
                 />
                 <input
@@ -450,9 +450,9 @@ export default function Home() {
               Swap
             </button>
           </div>
-        )
+        );
       }
-  }
+  };
   
 
   return (
